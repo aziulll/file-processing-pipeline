@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: file-api
+    command: ["node", "dist/main.js", "api"]
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - localstack
+
+  worker:
+    build: .
+    container_name: file-worker
+    command: ["node", "dist/main.js", "worker"]
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - localstack
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-files_db}
+      POSTGRES_USER: ${POSTGRES_USER:-files_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-files_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - localstack:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  pgdata:
+  localstack:
