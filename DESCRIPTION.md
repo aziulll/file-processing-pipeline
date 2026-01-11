@@ -103,7 +103,7 @@ Os workers devem:
 - **Armazenamento:** AWS S3
 - **Mensageria:** AWS SNS + SQS
 - **Containerização:** Docker / Docker Compose
-- **ORM:** TypeORM ou Prisma
+- **ORM:** TypeORM
 
 ---
 
@@ -137,33 +137,6 @@ Os workers devem:
 │ Worker (NestJS) │◀────▶│  PostgreSQL  │
 └─────────────────┘      └──────────────┘
 ```
-
----
-
-### 4.3 Estrutura do Projeto
-
-```
-src/
-├── modules/
-│   ├── files/
-│   │   ├── controllers/
-│   │   ├── services/
-│   │   ├── entities/
-│   │   ├── dto/
-│   │   └── repositories/
-│   ├── queue/
-│   │   ├── producers/
-│   │   └── consumers/
-│   └── storage/
-│       └── s3.service.ts
-├── common/
-│   ├── filters/
-│   ├── interceptors/
-│   └── pipes/
-└── workers/
-    └── file-processor.worker.ts
-```
-
 ---
 
 ### 4.4 Modelo de Dados
