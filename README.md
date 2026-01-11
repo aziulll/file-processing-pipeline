@@ -1,98 +1,204 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# File Processing Pipeline (NestJS)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Useful Links (EN / PT-BR)
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- API Swagger (planned): http://localhost:3000/api
+- Project description (PT-BR): [DESCRIPTION.md](DESCRIPTION.md)
+- Project description (EN): [DESCRIPTION.en.md](DESCRIPTION.en.md)
+- Project documentation (EN): [docs/DOCUMENTATION.en.md](docs/DOCUMENTATION.en.md)
+- Project documentation (PT-BR): [docs/DOCUMENTATION.pt-BR.md](docs/DOCUMENTATION.pt-BR.md)
 
-## Description
+## Executive Summary
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This repository contains a **file processing pipeline** implemented with **NestJS**, designed to demonstrate an **event-driven and asynchronous architecture** for ingesting files, persisting metadata, and processing content via background workers.
 
-## Project setup
+The solution is intended to be deployable to AWS (S3 + SNS/SQS + PostgreSQL) and runnable locally through Docker Compose using **PostgreSQL** and **LocalStack**.
+
+> Note: The architecture and functional requirements are described in detail (Portuguese) in `DESCRIPTION.md`. This README is the formal English project documentation.
+
+---
+
+## Objective
+
+The primary objective is to build an end-to-end pipeline that:
+
+1. Accepts user file uploads through an API.
+2. Stores uploaded files in object storage (S3).
+3. Persists file metadata (e.g., size, type, storage key, status) in PostgreSQL.
+4. Publishes an event to a queue/topic for asynchronous processing.
+5. Processes the file content in a worker service and updates status accordingly.
+
+This project emphasizes:
+
+- Event-driven design (decoupling ingestion from processing)
+- Reliable asynchronous execution (retries / DLQ)
+- Clear separation of concerns (API vs worker processes)
+- Cloud-ready design while remaining locally runnable
+
+---
+
+## Current State (What Is Already Built)
+
+The project is currently in an **initial scaffold / work-in-progress** phase.
+
+### Runtime and Process Model
+
+- A single compiled entrypoint supports multiple process types:
+  - `node dist/main.js api`
+  - `node dist/main.js worker`
+- A dedicated bootstrap exists for both processes:
+  - API bootstrap starts an HTTP server.
+  - Worker bootstrap starts a Nest application context based on a queue/module map.
+
+### Dockerized Development Environment
+
+- `docker-compose.yml` provides:
+  - `api` container
+  - `worker` container
+  - `postgres` container
+  - `localstack` container (currently configured with `SERVICES=s3`)
+- `Dockerfile` builds a production-ready image (multi-stage build).
+
+### API Module (Scaffold)
+
+- A `files` controller exists with a POST endpoint stub.
+- A service (`FileApiService`) returns a placeholder response indicating enqueue intent.
+
+### Domain Skeleton
+
+- A `FileStatus` enum exists, including: `PENDING`, `UPLOADED`, `PROCESSING`, `PROCESSED`, `FAILED`.
+
+### Important Gaps (Known Incompleteness)
+
+The following items are *present as placeholders* or are *not implemented yet*:
+
+- Worker queue/module mapping is not wired to actual Nest modules.
+- File domain module (`FileModule`) has no providers/controllers configured.
+- No persistence layer (TypeORM / entities / migrations) is implemented yet.
+- No AWS SDK integration (S3/SQS/SNS clients) is implemented yet.
+- LocalStack is configured for S3 only; SNS/SQS are planned.
+- Tests in `test/` are boilerplate and do not match the current module layout (e.g., references to an `AppModule` that does not exist).
+
+---
+
+## Target Architecture (What Will Be Built)
+
+The intended architecture is an asynchronous pipeline:
+
+1. **API** receives the file upload.
+2. API uploads the file to **S3** (or LocalStack S3 locally).
+3. API persists metadata to **PostgreSQL**.
+4. API publishes an event to **SNS** (or equivalent) and/or sends a message to **SQS**.
+5. **Worker** consumes the queue, downloads the file from S3, processes/validates it, and updates its status.
+6. Failures trigger retries; exceeding retry limits sends messages to a **DLQ**.
+
+---
+
+## Functional Scope
+
+### API Capabilities (Planned)
+
+- Upload endpoint (e.g., `POST /files/upload`):
+  - Accept CSV and JSON
+  - Enforce size constraints (e.g., 10MB)
+  - Upload to S3
+  - Persist metadata
+  - Publish event/message for asynchronous processing
+
+- Status endpoints:
+  - `GET /files/:id` to retrieve a file record and status
+  - `GET /files` with filtering and pagination (e.g., by status)
+
+### Worker Capabilities (Planned)
+
+- Consume messages from SQS.
+- Download file objects from S3.
+- Validate and process content (validation and/or transformation).
+- Update status in PostgreSQL.
+- Ensure correct message deletion semantics (delete only on success).
+
+---
+
+## Technology Stack
+
+- **Language/Runtime:** TypeScript / Node.js
+- **Framework:** NestJS
+- **Database:** PostgreSQL
+- **Messaging:** AWS SNS + SQS (LocalStack in development)
+- **Storage:** AWS S3 (LocalStack in development)
+- **Containerization:** Docker / Docker Compose
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- Docker + Docker Compose
+- Node.js 20+ (optional, for running without Docker)
+
+### Running with Docker Compose
 
 ```bash
-$ yarn install
+docker compose up --build
 ```
 
-## Compile and run the project
+Default ports:
+
+- API: `http://localhost:3000`
+- PostgreSQL: `localhost:5432`
+- LocalStack: `http://localhost:4566`
+
+### Running Locally (without Docker)
 
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+npm ci
+npm run build
+npm run start
 ```
 
-## Run tests
+Then choose a process type:
 
 ```bash
-# unit tests
-$ yarn run test
-
-# e2e tests
-$ yarn run test:e2e
-
-# test coverage
-$ yarn run test:cov
+node dist/main.js api
+node dist/main.js worker
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Configuration
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Docker Compose expects an `.env` file (not committed). At minimum, you will typically define:
 
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
-```
+- `PORT` (API port)
+- `QUEUE` (worker queue selector)
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `AWS_DEFAULT_REGION`
+- (planned) S3 bucket name and AWS credentials for LocalStack/AWS
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## Project Structure (High-Level)
 
-Check out a few resources that may come in handy when working with NestJS:
+- `src/main.ts`: multi-process entrypoint (`api` / `worker`)
+- `src/bootstrap/*`: bootstraps for each process type
+- `src/modules/file-api/*`: API-facing module (controllers/services)
+- `src/modules/file/*`: worker/domain module (processing logic, repository abstraction)
+- `src/constants/*`: queue names and worker module selection
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## Roadmap
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+1. Implement the **file domain** (entity + repository + persistence) backed by PostgreSQL.
+2. Implement **S3 upload/download** integration (AWS SDK; LocalStack compatible).
+3. Implement **queue/topic publishing** (SNS/SQS) from the API after upload.
+4. Implement the **worker consumer** (SQS polling/handler) and processing pipeline.
+5. Add resilience features: retries, DLQ, visibility timeout configuration, structured logging.
+6. Replace boilerplate tests with **API and worker e2e tests** aligned to the new modules.
 
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This repository is currently marked as `UNLICENSED` in `package.json`.
